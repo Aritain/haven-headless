@@ -84,6 +84,18 @@ def drain(line_queue, log, seconds):
     return lines
 
 
+def exited_early(proc, log, phase):
+    """Return an error outcome if the client exited before the scout finished."""
+    exit_code = proc.poll()
+    if exit_code is None:
+        return None
+    return {
+        "result": f"ERROR: Hurricane client exited during {phase} (exit code {exit_code})",
+        "found_roads": [],
+        "log": log,
+    }
+
+
 def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
               delays=None, verbose=False, password=None):
     """
@@ -107,25 +119,41 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
     log = []
     line_queue = queue.Queue()
     found_roads = []
-
-    proc = start_client(bindir, user, server, password=password)
-    start_reader_thread(proc, line_queue)
+    proc = None
 
     try:
+        proc = start_client(bindir, user, server, password=password)
+        start_reader_thread(proc, line_queue)
+
         drain(line_queue, log, delays["boot"])
+        outcome = exited_early(proc, log, "startup")
+        if outcome:
+            return outcome
 
         send(proc, f"play {char}", log)
         drain(line_queue, log, delays["login"])
+        outcome = exited_early(proc, log, "login")
+        if outcome:
+            return outcome
 
         for road in roads:
             send(proc, "rclick milestone-stone-e", log)
             drain(line_queue, log, delays["approach"])
+            outcome = exited_early(proc, log, "approaching the milestone")
+            if outcome:
+                return outcome
 
             send(proc, f"travelroad {road}", log)
             drain(line_queue, log, delays["travelapproach"])
+            outcome = exited_early(proc, log, f"travelling to {road}")
+            if outcome:
+                return outcome
 
             send(proc, f"findgob {gob}", log)
             result_lines = drain(line_queue, log, delays["settle"])
+            outcome = exited_early(proc, log, f"searching {road}")
+            if outcome:
+                return outcome
             found = any("FOUND:" in l and "NOTFOUND:" not in l for l in result_lines)
             if not found:
                 more = drain(line_queue, log, 1.0)
@@ -135,9 +163,15 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
 
             send(proc, "cancelmove", log)
             drain(line_queue, log, delays["short"])
+            outcome = exited_early(proc, log, "cancelling movement")
+            if outcome:
+                return outcome
 
             send(proc, "hearth", log)
             drain(line_queue, log, delays["teleport"])
+            outcome = exited_early(proc, log, "returning home")
+            if outcome:
+                return outcome
 
         send(proc, "q", log)
         drain(line_queue, log, delays["short"])
@@ -146,10 +180,11 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
     except Exception as e:
         result = f"ERROR: {e}"
     finally:
-        try:
-            proc.terminate()
-        except Exception:
-            pass
+        if proc is not None:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
 
     if verbose:
         print("\n".join(log))

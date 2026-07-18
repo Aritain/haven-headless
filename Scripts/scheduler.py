@@ -84,8 +84,11 @@ def _run_job(job_id):
                          f"{job['character_name']} ({job['account_label']}) checked "
                          f"{', '.join(roads)} for {job['gob_name']} — not found", level="info")
         else:
+            client_output = " | ".join(outcome["log"][-10:]).strip()
+            if client_output:
+                client_output = f" Client output: {client_output[:1500]}"
             db.log_event("scheduler", "job_error",
-                         f"{job['character_name']} ({job['account_label']}): {outcome['result']}",
+                         f"{job['character_name']} ({job['account_label']}): {outcome['result']}.{client_output}",
                          level="error")
     finally:
         lock.release()
