@@ -1,0 +1,6 @@
+.git
+**/.git
+**/__pycache__
+**/*.py[cod]
+Hurricane/.idea
+Hurricane/build

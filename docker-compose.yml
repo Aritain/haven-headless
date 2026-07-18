@@ -1,0 +1,12 @@
+services:
+  haven-headless:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./Scripts/scout.db:/app/scout.db
+      - ./Scripts/secret_key.txt:/app/secret_key.txt
+      - ./Scripts/crypto_key.txt:/app/crypto_key.txt
+    restart: unless-stopped
