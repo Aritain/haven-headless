@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Users</h1>
+<div class="subtitle">Approve sign-ups and manage admin access.</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="panel" style="border-color: {{ '#3ecf6a' if category == 'success' else '#ff5c5c' }};">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endwith %}
+
+<div class="panel">
+    <h3 style="margin-top:0;">Pending approval</h3>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Username</th><th>Requested</th><th></th></tr>
+        {% for u in pending %}
+        <tr>
+            <td>{{ u.email }}</td>
+            <td>{{ u.created_at[:19].replace("T", " ") }}</td>
+            <td style="white-space:nowrap;">
+                <form class="inline" method="post" action="{{ url_for('approve_user', user_id=u.id) }}">
+                    <button class="btn small">Approve</button>
+                </form>
+                <form class="inline" method="post" action="{{ url_for('reject_user', user_id=u.id) }}"
+                      onsubmit="return confirm('Reject and delete this sign-up request?');">
+                    <button class="btn small danger">Reject</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="color:var(--muted);">No pending sign-ups.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;">All users</h3>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Username</th><th>Admin</th><th>Approved</th><th></th></tr>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.email }}</td>
+            <td>{{ "Yes" if u.is_admin else "No" }}</td>
+            <td>{{ "Yes" if u.is_approved else "No" }}</td>
+            <td style="white-space:nowrap;">
+                <form class="inline" method="post" action="{{ url_for('toggle_admin', user_id=u.id) }}">
+                    <button class="btn small secondary">{{ "Remove admin" if u.is_admin else "Make admin" }}</button>
+                </form>
+                <form class="inline" method="post" action="{{ url_for('delete_user', user_id=u.id) }}"
+                      onsubmit="return confirm('Delete this user account?');">
+                    <button class="btn small danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ "Edit job" if job else "New job" }}</h1>
+<div class="subtitle">Pick a character, the road(s) to check, and what to watch for.</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="panel" style="border-color: {{ '#3ecf6a' if category == 'success' else '#ff5c5c' }};">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endwith %}
+
+<div class="panel">
+    {% if characters %}
+    <form method="post" action="{{ url_for('edit_job', job_id=job.id) if job else url_for('new_job') }}">
+        <label>Character</label>
+        <select name="character_id" required>
+            {% for c in characters %}
+            <option value="{{ c.id }}" {{ "selected" if job and job.character_id == c.id }}>
+                {{ c.account_label }} — {{ c.name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Roads to check (checked in order, one login covers all of them)</label>
+        <div id="road-list">
+            {% set roads = job_roads if job_roads else [""] %}
+            {% for r in roads %}
+            <div class="road-row" style="display:flex; gap:8px; margin-bottom:8px;">
+                <input name="road_name" placeholder="e.g. Winnfield" value="{{ r }}" required>
+                <button type="button" class="btn small secondary remove-road" title="Remove road" aria-label="Remove road">×</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn small secondary" id="add-road">+ Add another road</button>
+
+        <label>Gob to watch for (resource name fragment)</label>
+        <input name="gob_name" placeholder="e.g. mammoth" value="{{ job.gob_name if job else '' }}" required>
+
+        <label>Check every (minutes)</label>
+        <input type="number" name="interval_minutes" value="{{ job.interval_minutes if job else 30 }}" min="5" required>
+
+        <div style="margin-top:20px;">
+            <button class="btn" type="submit">{{ "Save changes" if job else "Create job" }}</button>
+            <a href="{{ url_for('index') }}" class="btn secondary">Cancel</a>
+        </div>
+    </form>
+    {% else %}
+    <p style="color:var(--muted);">No characters yet. Go to <a href="{{ url_for('accounts') }}">Accounts &amp; Characters</a> and add one first.</p>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('add-road').addEventListener('click', function() {
+    var list = document.getElementById('road-list');
+    var row = document.createElement('div');
+    row.className = 'road-row';
+    row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
+    row.innerHTML = '<input name="road_name" placeholder="e.g. Rickdeckard" required>' +
+        '<button type="button" class="btn small secondary remove-road" title="Remove road" aria-label="Remove road">\u00D7</button>';
+    list.appendChild(row);
+});
+document.getElementById('road-list').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-road')) {
+        var rows = document.querySelectorAll('.road-row');
+        if (rows.length > 1) {
+            e.target.closest('.road-row').remove();
+        }
+    }
+});
+</script>
+{% endblock %}

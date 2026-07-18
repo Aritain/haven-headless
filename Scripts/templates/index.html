@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Jobs</h1>
+<div class="subtitle">Each job checks one character's road for one gob, on repeat.</div>
+
+<div class="panel">
+    <a href="{{ url_for('new_job') }}" class="btn">+ New job</a>
+</div>
+
+<div class="panel">
+    <div class="table-wrap">
+    <table>
+        <tr>
+            <th>Character</th><th>Road</th><th>Watching for</th>
+            <th>Every</th><th>Last run</th><th>Next run</th><th>Status</th><th></th>
+        </tr>
+        {% set ns = namespace(current_account=None) %}
+        {% for j in jobs %}
+            {% if j.account_label != ns.current_account %}
+            <tr class="group-row"><td colspan="8">{{ j.account_label }} ({{ j.account_username }})</td></tr>
+            {% set ns.current_account = j.account_label %}
+            {% endif %}
+        <tr>
+            <td>{{ j.character_name }}</td>
+            <td>{{ j.roads_display or j.road_name }}</td>
+            <td>{{ j.gob_name }}</td>
+            <td>{{ j.interval_minutes }} min</td>
+            <td>{{ j.last_run_at | fmt_dt }}</td>
+            <td style="color:var(--muted); font-size:12px;">{{ next_run_str(j) }}</td>
+            <td>
+                {% if j.is_running %}
+                    <span class="badge notfound">running…</span>
+                {% elif j.enabled %}
+                    <span class="badge on">enabled</span>
+                {% else %}
+                    <span class="badge off">disabled</span>
+                {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+                <div class="row-actions">
+                <a href="{{ url_for('edit_job', job_id=j.id) }}" class="btn small secondary">Edit</a>
+                <form class="inline" method="post" action="{{ url_for('toggle_job', job_id=j.id) }}">
+                    <button type="submit" class="toggle {{ 'on' if j.enabled else 'off' }}"
+                            title="{{ 'Disable' if j.enabled else 'Enable' }}"
+                            aria-label="{{ 'Disable' if j.enabled else 'Enable' }}">
+                        <span class="toggle-knob"></span>
+                    </button>
+                </form>
+                <form class="inline" method="post" action="{{ url_for('run_now', job_id=j.id) }}">
+                    <button type="submit" class="icon-btn play" title="Run now" aria-label="Run now">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                </form>
+                <form class="inline" method="post" action="{{ url_for('delete_job', job_id=j.id) }}"
+                      onsubmit="return confirm('Delete this job?');">
+                    <button type="submit" class="icon-btn trash" title="Delete" aria-label="Delete">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16z"/></svg>
+                    </button>
+                </form>
+                </div>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="color:var(--muted);">No jobs yet. Add an account and character first, then create a job.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endblock %}

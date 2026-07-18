@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Accounts &amp; Characters</h1>
+<div class="subtitle">Characters on the same account run one at a time automatically.</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="panel" style="border-color: {{ '#3ecf6a' if category == 'success' else '#ff5c5c' }};">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endwith %}
+
+<div class="panel">
+    <h3 style="margin-top:0;">Add account</h3>
+    <form method="post" action="{{ url_for('accounts') }}">
+        <div class="row">
+            <div>
+                <label>Label (just for you)</label>
+                <input name="label" placeholder="e.g. Main" required>
+            </div>
+            <div>
+                <label>Account username</label>
+                <input name="username" placeholder="e.g. saltbae4" required>
+            </div>
+        </div>
+        <label>Account password (required — this app always logs in fresh, never relies on a cached token)</label>
+        <input type="password" name="password" required>
+        <div style="margin-top:16px;">
+            <button class="btn" type="submit">Add account</button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;">Accounts</h3>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Label</th><th>Username</th><th>Password saved</th><th></th></tr>
+        {% for a in accounts %}
+        <tr>
+            <td>{{ a.label }}</td>
+            <td>{{ a.username }}</td>
+            <td>{{ "Yes" if a.password_encrypted else "No — jobs will fail until one is set" }}</td>
+            <td style="white-space:nowrap;">
+                <a href="{{ url_for('edit_account', account_id=a.id) }}" class="btn small secondary">Edit</a>
+                <form class="inline" method="post" action="{{ url_for('delete_account', account_id=a.id) }}"
+                      onsubmit="return confirm('Delete this account and its characters/jobs?');">
+                    <button class="btn small danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="color:var(--muted);">No accounts yet.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;">Add character</h3>
+    <form method="post" action="{{ url_for('new_character') }}">
+        <div class="row">
+            <div>
+                <label>Account</label>
+                <select name="account_id" required>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}">{{ a.label }} ({{ a.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Character name</label>
+                <input name="name" placeholder="e.g. anglerbot" required>
+            </div>
+        </div>
+        <div style="margin-top:16px;">
+            <button class="btn" type="submit">Add character</button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;">Characters</h3>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Account</th><th>Character</th><th></th></tr>
+        {% for c in characters %}
+        <tr>
+            <td>{{ c.account_label }}</td>
+            <td>{{ c.name }}</td>
+            <td>
+                <form method="post" action="{{ url_for('delete_character', character_id=c.id) }}"
+                      onsubmit="return confirm('Delete this character and its jobs?');">
+                    <button class="btn small danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="color:var(--muted);">No characters yet.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endblock %}

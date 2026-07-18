@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Edit account</h1>
+<div class="subtitle">Password field is left blank on purpose — it's never shown back to you.</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="panel" style="border-color: {{ '#3ecf6a' if category == 'success' else '#ff5c5c' }};">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endwith %}
+
+<div class="panel">
+    <form method="post">
+        <div class="row">
+            <div>
+                <label>Label</label>
+                <input name="label" value="{{ account.label }}" required>
+            </div>
+            <div>
+                <label>Account username</label>
+                <input name="username" value="{{ account.username }}" required>
+            </div>
+        </div>
+
+        <label>{{ "New password (leave blank to keep the current one unchanged)" if account.password_encrypted else "Password (required)" }}</label>
+        <input type="password" name="password" {{ "required" if not account.password_encrypted else "" }}
+               placeholder="{{ 'A password is currently saved' if account.password_encrypted else 'No password saved yet — required' }}">
+
+        <div style="margin-top:20px;">
+            <button class="btn" type="submit">Save changes</button>
+            <a href="{{ url_for('accounts') }}" class="btn secondary">Cancel</a>
+        </div>
+    </form>
+
+    {% if account.password_encrypted %}
+    <form method="post" action="{{ url_for('clear_account_password', account_id=account.id) }}"
+          style="margin-top:16px;" onsubmit="return confirm('Remove the saved password? Jobs on this account will fail until a new one is set.');">
+        <button class="btn small danger" type="submit">Remove saved password</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

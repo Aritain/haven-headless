@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Activity log</h1>
+<div class="subtitle">Every change made on this site, plus job run results.</div>
+
+<div class="panel">
+    <form method="get" action="{{ url_for('logs') }}">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search by user, action, road, gob...">
+    </form>
+</div>
+
+<div class="panel">
+    <div class="table-wrap">
+    <table>
+        <tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr>
+        {% for e in entries %}
+        <tr class="log-row log-{{ e.level }}">
+            <td class="when" title="{{ e.created_at }}">{{ e.created_at | fmt_dt }}</td>
+            <td>{{ e.actor }}</td>
+            <td class="action">{{ e.action }}</td>
+            <td>{{ e.message }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="color:var(--muted);">No log entries{{ " matching \"" + q + "\"" if q }}.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endblock %}

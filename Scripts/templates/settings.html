@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+<div class="subtitle">Applies to every job.</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="panel" style="border-color: {{ '#3ecf6a' if category == 'success' else '#ff5c5c' }};">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endwith %}
+
+<div class="panel">
+    <form method="post">
+        <label>Hurricane bin folder path</label>
+        <input name="bindir" value="{{ bindir }}"
+               placeholder="C:\Users\you\Desktop\Haven and Hearth\HeadlessClient\Hurricane\bin" required>
+
+        <label>Game server</label>
+        <input name="server" value="{{ server }}" required>
+
+        <label>Discord webhook URL (optional — leave blank to disable Discord posts)</label>
+        <input name="discord_webhook_url" value="{{ discord_webhook_url }}"
+               placeholder="https://discord.com/api/webhooks/...">
+
+        <label>Discord role ID to @mention (optional)</label>
+        <input name="discord_role_id" value="{{ discord_role_id }}"
+               placeholder="e.g. 123456789012345678">
+
+        <label>Discord message (use {character}, {account}, {gob}, {road} anywhere you like)</label>
+        <textarea name="discord_message_template" rows="3" style="width:100%; resize:vertical;">{{ discord_message_template }}</textarea>
+
+        <div style="margin-top:20px;">
+            <button class="btn" type="submit">Save</button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <h3 style="margin-top:0;">Test Discord webhook</h3>
+    <div class="subtitle" style="margin-bottom:12px;">Save your webhook URL above first, then send a test message.</div>
+    <form method="post" action="{{ url_for('test_webhook') }}">
+        <button class="btn secondary" type="submit">Send test message</button>
+    </form>
+</div>
+{% endblock %}
+
