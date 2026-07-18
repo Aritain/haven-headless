@@ -4,9 +4,12 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "${HOST_PORT:-5001}:5000"
+    environment:
+      APP_DATA_DIR: /data
     volumes:
-      - ./Scripts/scout.db:/app/scout.db
-      - ./Scripts/secret_key.txt:/app/secret_key.txt
-      - ./Scripts/crypto_key.txt:/app/crypto_key.txt
+      - haven_headless_data:/data
     restart: unless-stopped
+
+volumes:
+  haven_headless_data:

@@ -1,7 +1,9 @@
 import os
 from cryptography.fernet import Fernet, InvalidToken
 
-KEY_FILE = "crypto_key.txt"
+DATA_DIR = os.environ.get("APP_DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+KEY_FILE = os.path.join(DATA_DIR, "crypto_key.txt")
 
 
 def _get_key():

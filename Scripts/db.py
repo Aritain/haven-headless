@@ -1,7 +1,10 @@
 import sqlite3
+import os
 from contextlib import contextmanager
 
-DB_PATH = "scout.db"
+DATA_DIR = os.environ.get("APP_DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "scout.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (

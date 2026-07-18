@@ -19,7 +19,9 @@ app = Flask(__name__)
 
 # Secret key persists across restarts (stored in a local file) so logged-in
 # sessions don't get invalidated every time you restart the server.
-SECRET_KEY_FILE = "secret_key.txt"
+DATA_DIR = os.environ.get("APP_DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+SECRET_KEY_FILE = os.path.join(DATA_DIR, "secret_key.txt")
 if os.path.exists(SECRET_KEY_FILE):
     app.secret_key = open(SECRET_KEY_FILE).read().strip()
 else:
