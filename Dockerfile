@@ -2,7 +2,7 @@ FROM python:3.12-slim-bookworm
 
 # The Python dashboard starts Hurricane's Java headless client for scout jobs.
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y openjdk-17-jre-headless xauth xvfb \
+    && apt-get install --no-install-recommends -y openjdk-17-jre xauth xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
