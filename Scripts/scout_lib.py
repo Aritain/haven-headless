@@ -31,10 +31,13 @@ DEFAULT_DELAYS = {
 
 
 def start_client(bindir, user, server, password=None):
+    # Hurricane's headless client still initializes AWT/JOGL. Run it under a
+    # temporary virtual X server so it can do so without a physical display.
+    cmd = ["xvfb-run", "-a", "java", *JAVA_ARGS]
     if password is not None:
-        cmd = ["java", *JAVA_ARGS, "-u", user, "-w", server]
+        cmd += ["-u", user, "-w", server]
     else:
-        cmd = ["java", *JAVA_ARGS, "-u", user, server]
+        cmd += ["-u", user, server]
     proc = subprocess.Popen(
         cmd,
         cwd=bindir,
