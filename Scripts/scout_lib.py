@@ -11,6 +11,12 @@ import threading
 import time
 
 JAVA_ARGS = [
+    # Headless client has no default heap cap otherwise, so with several
+    # scout jobs running in parallel (see scheduler.MAX_PARALLEL) each JVM's
+    # ergonomic default (~25% of visible host RAM) can add up to the whole
+    # host and OOM it. Cap explicitly instead.
+    "-Xmx384m",
+    "-XX:+UseSerialGC",
     "--add-exports=java.base/java.lang=ALL-UNNAMED",
     "--add-exports=java.desktop/sun.awt=ALL-UNNAMED",
     "--add-exports=java.desktop/sun.java2d=ALL-UNNAMED",

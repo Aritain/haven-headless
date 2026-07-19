@@ -10,6 +10,10 @@ services:
     volumes:
       - haven_headless_data:/data
     restart: unless-stopped
+    # Backstop: with no limit here, each headless-client JVM's default heap
+    # ergonomics scale off full host RAM instead of a container budget, so
+    # several parallel scout jobs (scheduler.MAX_PARALLEL) can OOM the host.
+    mem_limit: 3g
 
 volumes:
   haven_headless_data:
