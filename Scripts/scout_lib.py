@@ -5,7 +5,6 @@ Shared by scout.py (CLI) and app.py (web dashboard) so there's a single
 tested implementation instead of two copies drifting apart.
 """
 
-import os
 import queue
 import subprocess
 import threading
@@ -32,14 +31,13 @@ DEFAULT_DELAYS = {
 
 
 def start_client(bindir, user, server, password=None):
+    # Hurricane's headless client still initializes AWT/JOGL. Run it under a
+    # temporary virtual X server so it can do so without a physical display.
+    cmd = ["xvfb-run", "-a", "java", *JAVA_ARGS]
     if password is not None:
-        cmd = ["java", *JAVA_ARGS, "-u", user, "-w", server]
+        cmd += ["-u", user, "-w", server]
     else:
-        cmd = ["java", *JAVA_ARGS, "-u", user, server]
-    env = os.environ.copy()
-    display = env.get("DISPLAY")
-    if not display:
-        env["DISPLAY"] = ":99"  # matches the Xvfb virtual display started on the VPS
+        cmd += ["-u", user, server]
     proc = subprocess.Popen(
         cmd,
         cwd=bindir,
@@ -48,7 +46,6 @@ def start_client(bindir, user, server, password=None):
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        env=env,
     )
     if password is not None:
         # Sent over the private stdin pipe, never as a command-line argument
@@ -90,6 +87,18 @@ def drain(line_queue, log, seconds):
     return lines
 
 
+def exited_early(proc, log, phase):
+    """Return an error outcome if the client exited before the scout finished."""
+    exit_code = proc.poll()
+    if exit_code is None:
+        return None
+    return {
+        "result": f"ERROR: Hurricane client exited during {phase} (exit code {exit_code})",
+        "found_roads": [],
+        "log": log,
+    }
+
+
 def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
               delays=None, verbose=False, password=None):
     """
@@ -113,25 +122,41 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
     log = []
     line_queue = queue.Queue()
     found_roads = []
-
-    proc = start_client(bindir, user, server, password=password)
-    start_reader_thread(proc, line_queue)
+    proc = None
 
     try:
+        proc = start_client(bindir, user, server, password=password)
+        start_reader_thread(proc, line_queue)
+
         drain(line_queue, log, delays["boot"])
+        outcome = exited_early(proc, log, "startup")
+        if outcome:
+            return outcome
 
         send(proc, f"play {char}", log)
         drain(line_queue, log, delays["login"])
+        outcome = exited_early(proc, log, "login")
+        if outcome:
+            return outcome
 
         for road in roads:
             send(proc, "rclick milestone-stone-e", log)
             drain(line_queue, log, delays["approach"])
+            outcome = exited_early(proc, log, "approaching the milestone")
+            if outcome:
+                return outcome
 
             send(proc, f"travelroad {road}", log)
             drain(line_queue, log, delays["travelapproach"])
+            outcome = exited_early(proc, log, f"travelling to {road}")
+            if outcome:
+                return outcome
 
             send(proc, f"findgob {gob}", log)
             result_lines = drain(line_queue, log, delays["settle"])
+            outcome = exited_early(proc, log, f"searching {road}")
+            if outcome:
+                return outcome
             found = any("FOUND:" in l and "NOTFOUND:" not in l for l in result_lines)
             if not found:
                 more = drain(line_queue, log, 1.0)
@@ -141,9 +166,15 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
 
             send(proc, "cancelmove", log)
             drain(line_queue, log, delays["short"])
+            outcome = exited_early(proc, log, "cancelling movement")
+            if outcome:
+                return outcome
 
             send(proc, "hearth", log)
             drain(line_queue, log, delays["teleport"])
+            outcome = exited_early(proc, log, "returning home")
+            if outcome:
+                return outcome
 
         send(proc, "q", log)
         drain(line_queue, log, delays["short"])
@@ -152,15 +183,11 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
     except Exception as e:
         result = f"ERROR: {e}"
     finally:
-        try:
-            proc.terminate()
+        if proc is not None:
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=5)
-        except Exception:
-            pass
+                proc.terminate()
+            except ProcessLookupError:
+                pass
 
     if verbose:
         print("\n".join(log))
