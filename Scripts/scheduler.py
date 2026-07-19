@@ -9,7 +9,9 @@ import crypto_util
 from notifier import notify_found
 
 POLL_SECONDS = 15
-MAX_PARALLEL = 4  # different accounts can run at the same time, up to this many
+MAX_PARALLEL = 2  # different accounts can run at the same time, up to this many
+# Kept low deliberately: each headless-client JVM still runs ~1GB+ RSS, and
+# this host only has ~1.8GB free once its other containers are accounted for.
 
 _executor = ThreadPoolExecutor(max_workers=MAX_PARALLEL)
 _account_locks = {}

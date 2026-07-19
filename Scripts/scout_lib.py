@@ -25,6 +25,13 @@ JAVA_ARGS = [
     "haven.HeadlessClient",
 ]
 
+# HeadlessClient defaults its offscreen render target to 1920x1080 (real
+# color+depth textures at that size) even though nothing ever displays it,
+# which is a big chunk of why each instance's RSS runs 1GB+. The scout bot
+# only reads the widget tree over stdin/stdout, never pixels, so shrink it
+# with the client's own -s flag.
+HEADLESS_RENDER_SIZE = "320x240"
+
 DEFAULT_DELAYS = {
     "boot": 6.0,
     "login": 8.0,
@@ -41,9 +48,9 @@ def start_client(bindir, user, server, password=None):
     # temporary virtual X server so it can do so without a physical display.
     cmd = ["xvfb-run", "-a", "java", *JAVA_ARGS]
     if password is not None:
-        cmd += ["-u", user, "-w", server]
+        cmd += ["-s", HEADLESS_RENDER_SIZE, "-u", user, "-w", server]
     else:
-        cmd += ["-u", user, server]
+        cmd += ["-s", HEADLESS_RENDER_SIZE, "-u", user, server]
     proc = subprocess.Popen(
         cmd,
         cwd=bindir,
