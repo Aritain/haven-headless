@@ -1,3 +1,4 @@
+import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -12,11 +13,20 @@ POLL_SECONDS = 15
 MAX_PARALLEL = 2  # different accounts can run at the same time, up to this many
 # Kept low deliberately: each headless-client JVM still runs ~1GB+ RSS, and
 # this host only has ~1.8GB free once its other containers are accounted for.
+DISPLAY_BASE = 90  # first X display number handed out to concurrent scout jobs
 
 _executor = ThreadPoolExecutor(max_workers=MAX_PARALLEL)
 _account_locks = {}
 _account_locks_guard = threading.Lock()
 _stop = threading.Event()
+
+# Fixed pool of X display numbers, one per concurrent job slot. xvfb-run's
+# own "-a" auto-picks a display via a non-atomic check-then-act loop, so
+# concurrent jobs launched close together can race onto the same number and
+# fail with X11 errors; handing out unique numbers up front avoids that.
+_display_pool = queue.Queue()
+for _n in range(DISPLAY_BASE, DISPLAY_BASE + MAX_PARALLEL):
+    _display_pool.put(_n)
 
 
 def _lock_for_account(account_id):
@@ -69,10 +79,15 @@ def _run_job(job_id):
                          f"{job['character_name']} ({job['account_label']}): no roads configured",
                          level="error")
             return
-        outcome = scout_lib.run_scout(
-            bindir, job["account_username"], job["character_name"],
-            roads, job["gob_name"], server, password=password,
-        )
+        display = _display_pool.get()
+        try:
+            outcome = scout_lib.run_scout(
+                bindir, job["account_username"], job["character_name"],
+                roads, job["gob_name"], server, password=password,
+                display=display,
+            )
+        finally:
+            _display_pool.put(display)
         db.record_job_result(job_id, datetime.now(timezone.utc).isoformat(), outcome["result"])
         if outcome["found_roads"]:
             for road in outcome["found_roads"]:
@@ -86,9 +101,13 @@ def _run_job(job_id):
                          f"{job['character_name']} ({job['account_label']}) checked "
                          f"{', '.join(roads)} for {job['gob_name']} — not found", level="info")
         else:
-            client_output = " | ".join(outcome["log"][-10:]).strip()
+            # Wide enough to keep a full crash trace (e.g. a JOGL/X11 fatal
+            # error's stack) instead of just its last couple of lines - the
+            # narrower 10-line/1500-char version routinely cut off the part
+            # that actually explained the failure.
+            client_output = " | ".join(outcome["log"][-200:]).strip()
             if client_output:
-                client_output = f" Client output: {client_output[:1500]}"
+                client_output = f" Client output: {client_output[:20000]}"
             db.log_event("scheduler", "job_error",
                          f"{job['character_name']} ({job['account_label']}): {outcome['result']}.{client_output}",
                          level="error")

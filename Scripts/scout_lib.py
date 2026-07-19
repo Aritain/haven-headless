@@ -10,13 +10,16 @@ import subprocess
 import threading
 import time
 
+import psutil
+
 JAVA_ARGS = [
-    # Headless client has no default heap cap otherwise, so with several
-    # scout jobs running in parallel (see scheduler.MAX_PARALLEL) each JVM's
-    # ergonomic default (~25% of visible host RAM) can add up to the whole
-    # host and OOM it. Cap explicitly instead.
-    "-Xmx384m",
-    "-XX:+UseSerialGC",
+    # No -Xmx/-XX:+UseSerialGC here on purpose: a capped heap + the
+    # stop-the-world serial collector meant frequent, longer GC pauses that
+    # froze every JVM thread - including the one servicing the X11 socket -
+    # long enough to trip JogAmp's connection timeout and crash the client
+    # with a fatal "Nativewindow X11 IOError". Memory is bounded by the
+    # other layers instead: scheduler.MAX_PARALLEL, docker-compose's
+    # mem_limit backstop, and watchdog reaping orphaned/stuck processes.
     "--add-exports=java.base/java.lang=ALL-UNNAMED",
     "--add-exports=java.desktop/sun.awt=ALL-UNNAMED",
     "--add-exports=java.desktop/sun.java2d=ALL-UNNAMED",
@@ -43,10 +46,21 @@ DEFAULT_DELAYS = {
 }
 
 
-def start_client(bindir, user, server, password=None):
+def start_client(bindir, user, server, password=None, display=None):
     # Hurricane's headless client still initializes AWT/JOGL. Run it under a
     # temporary virtual X server so it can do so without a physical display.
-    cmd = ["xvfb-run", "-a", "java", *JAVA_ARGS]
+    #
+    # xvfb-run's own "-a" auto-picks a free display number via a check-then-act
+    # loop that isn't atomic, so two instances launched close together (as
+    # happens with concurrent scout jobs) can race onto the same number and
+    # fail with X11 "Resource temporarily unavailable"/"Invalid argument". If
+    # the caller hands us a display slot (see scheduler.py's pool), use it
+    # directly instead of trusting -a to pick uniquely.
+    if display is not None:
+        xvfb_opts = ["--server-num", str(display)]
+    else:
+        xvfb_opts = ["-a"]
+    cmd = ["xvfb-run", *xvfb_opts, "java", *JAVA_ARGS]
     if password is not None:
         cmd += ["-s", HEADLESS_RENDER_SIZE, "-u", user, "-w", server]
     else:
@@ -100,6 +114,43 @@ def drain(line_queue, log, seconds):
     return lines
 
 
+def stop_client(proc, grace_seconds=5):
+    """Terminate the client and block until it (and its xvfb-run/Xvfb
+    children) are actually gone, so the display number it used is safe to
+    hand to the next job. proc.terminate() alone only signals the top-level
+    xvfb-run shell, which doesn't reliably forward the signal to its java and
+    Xvfb children, and doesn't wait for exit - both of which would leave the
+    display's lock file/socket around for a subsequent job to race onto."""
+    try:
+        top = psutil.Process(proc.pid)
+    except psutil.NoSuchProcess:
+        return
+    try:
+        procs = top.children(recursive=True)
+    except psutil.NoSuchProcess:
+        procs = []
+    procs.append(top)
+
+    for p in procs:
+        try:
+            p.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    _, alive = psutil.wait_procs(procs, timeout=grace_seconds)
+    for p in alive:
+        try:
+            p.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    psutil.wait_procs(alive, timeout=grace_seconds)
+    # Reap via Python's own handle too, so subprocess doesn't keep it a zombie.
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        pass
+
+
 def exited_early(proc, log, phase):
     """Return an error outcome if the client exited before the scout finished."""
     exit_code = proc.poll()
@@ -113,7 +164,7 @@ def exited_early(proc, log, phase):
 
 
 def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
-              delays=None, verbose=False, password=None):
+              delays=None, verbose=False, password=None, display=None):
     """
     Runs one full scout cycle: login, then for each road in `roads` (checked
     in order): right-click the milestone, start travel, check for the gob,
@@ -138,7 +189,7 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
     proc = None
 
     try:
-        proc = start_client(bindir, user, server, password=password)
+        proc = start_client(bindir, user, server, password=password, display=display)
         start_reader_thread(proc, line_queue)
 
         drain(line_queue, log, delays["boot"])
@@ -197,10 +248,7 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
         result = f"ERROR: {e}"
     finally:
         if proc is not None:
-            try:
-                proc.terminate()
-            except ProcessLookupError:
-                pass
+            stop_client(proc)
 
     if verbose:
         print("\n".join(log))

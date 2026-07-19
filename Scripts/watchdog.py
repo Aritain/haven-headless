@@ -82,7 +82,14 @@ def scan_once():
                 continue
 
             age = time.time() - (proc.info["create_time"] or time.time())
-            orphaned = _is_orphaned(proc)
+            # Orphan-kill disabled: every crash we could correlate had a
+            # watchdog orphan_killed event within milliseconds of it,
+            # including one only 3s after the process started - it was
+            # killing live, still-legitimately-parented processes, not
+            # actual orphans. Root cause not nailed down; disabled until it
+            # is. Stuck-process reaping (>300s) stays active as the backstop
+            # against runaway processes.
+            orphaned = False
             stuck = age > MAX_RUN_SECONDS
 
             if not orphaned and not stuck:

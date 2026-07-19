@@ -14,6 +14,16 @@ services:
     # ergonomics scale off full host RAM instead of a container budget, so
     # several parallel scout jobs (scheduler.MAX_PARALLEL) can OOM the host.
     mem_limit: 4g
+    # Docker defaults /dev/shm to 64MB. Hurricane's JOGL/X11 layer uses
+    # MIT-SHM for texture/pixmap transfer; when it can't get a shm segment
+    # mid-render, Xlib treats it as a fatal connection error, surfacing as
+    # "Nativewindow X11 IOError ... Resource temporarily unavailable".
+    shm_size: '512m'
+    # TEMPORARY: lets strace attach to the java process for live diagnosis of
+    # the recurring X11 crash. Remove once root-caused - this is a wider
+    # syscall surface than the app needs day to day.
+    cap_add:
+      - SYS_PTRACE
 
 volumes:
   haven_headless_data:
