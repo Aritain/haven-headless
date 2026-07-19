@@ -13,9 +13,7 @@ services:
     # Backstop: with no limit here, each headless-client JVM's default heap
     # ergonomics scale off full host RAM instead of a container budget, so
     # several parallel scout jobs (scheduler.MAX_PARALLEL) can OOM the host.
-    # Sized to what this host actually has free (~1.8GB) alongside its other
-    # containers, not the host's full 7.7GB.
-    mem_limit: 2g
+    mem_limit: 4g
 
 volumes:
   haven_headless_data:

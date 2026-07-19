@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 import db
 import scheduler
+import watchdog
 import notifier
 import crypto_util
 from auth import login_manager, User, admin_required
@@ -422,6 +423,7 @@ def logs():
 def create_app():
     db.init_db()
     scheduler.start()
+    watchdog.start()
     return app
 
 
