@@ -26,6 +26,10 @@ cd Scripts && python3 app.py
 # equivalent manually:
 docker compose up -d --build --force-recreate
 
+# Optional: tune per-host timing via a .env file (gitignored) next to
+# docker-compose.yml, e.g.:
+echo "DELAY_MULTIPLIER=3" > .env
+
 # One-off scout run from the CLI, outside the scheduler/dashboard
 python3 Scripts/scout.py --bindir "Hurricane/bin" --user USER --char CHAR \
   --road ROADNAME --gob GOBNAME [--road ROADNAME2 ...] [--verbose]
@@ -56,7 +60,14 @@ No test suite exists in this repo.
   (web). `run_scout()` launches `xvfb-run ... java ... haven.HeadlessClient` as a subprocess, logs in,
   drives it via a tiny scripted stdin console-command protocol (`:play`, `:rclick`, `:travelroad`,
   `:findgob`, `:cancelmove`, `:hearth`, `:q` - see `HeadlessClient.java`'s `cmdmap`), and parses
-  stdout for `FOUND:`/`NOTFOUND:` markers. `stop_client()` does a full recursive
+  stdout for `FOUND:`/`NOTFOUND:` markers. Between each command it just sleeps a fixed delay
+  (`DEFAULT_DELAYS`: `boot`, `login`, `approach`, `travelapproach`, `settle`, `short`, `teleport`)
+  instead of waiting for any actual readiness signal from the client - too short on a slow
+  host/network path to the game server, this silently no-ops every remaining step (`"Not in game
+  yet"`, `"No road menu found"`, etc.) rather than erroring, which reads as a false
+  NOTFOUND/never-found-anything rather than an obvious failure. The `boot`/`login`/`approach`/
+  `travelapproach` delays scale by the `DELAY_MULTIPLIER` env var (default `1.0`; set via a
+  gitignored `.env` file per-host, see Commands) for exactly this reason. `stop_client()` does a full recursive
   terminate-then-wait-then-kill of the whole `xvfb-run`/`java`/`Xvfb` process tree, since a bare
   `proc.terminate()` only signals the top-level `xvfb-run` shell and isn't reliably forwarded to its
   children.
@@ -89,6 +100,42 @@ concurrency/display-number collisions, `java.awt.headless`, forcing alternate `h
 implementations) - see git history around the "mem limits", "limit resolution + fixes", and "fix
 python" commits for the abandoned attempts. **All were reverted**; `Hurricane/src` is currently back
 to vanilla.
+
+## Fixed issue: HeadlessClient stdin/loop startup race
+
+`HeadlessClient.run()` used to start the stdio-reader thread *before* assigning `this.loop`:
+
+```java
+Thread stdio = new HackThread(this::stdin, "stdio reader");
+stdio.start();
+UILoop loop = this.loop = new HeadlessLoop();
+loop.start();
+```
+
+`stdin()` reads `loop.ui` (an implicit `this.loop`) with no null-check, outside the only try/catch
+in that method (which only catches `IOException`, not `NullPointerException`). If a command was
+already sitting in the stdin pipe buffer (`scout_lib.py` sends `:play {char}` after a fixed delay,
+not after any real readiness signal) at the moment the new thread got scheduled, it would read and
+process that command before the very next line assigned `this.loop` - NPE, uncaught, and
+`haven.error.SimpleHandler("Haven main group", true)` treats that as fatal and kills the whole JVM
+mid-login (seen as `exit code 127` with `Cannot read field "ui" because "this.loop" is null`).
+
+Whether this triggers is purely down to that host's thread-scheduling behavior on `Thread.start()`
+- consistently fine on some machines, consistently fatal on others (e.g. shared/constrained vCPU
+hosts), never intermittent on a given host. Fixed by reordering so `this.loop` is assigned and
+`loop.start()` called *before* the stdio thread is created, closing the window entirely:
+
+```java
+UILoop loop = this.loop = new HeadlessLoop();
+loop.start();
+Thread stdio = new HackThread(this::stdin, "stdio reader");
+stdio.start();
+```
+
+Note: `HeadlessClient.java` lives under `Hurricane/`, which is entirely gitignored (see
+`.gitignore`) - this fix (and any future edits here) must be applied by hand on each host and does
+not travel via `git pull`. Rebuild with `ant` after applying (see Commands) and restart the
+container - no image rebuild needed since `Hurricane/` is bind-mounted, not baked into the image.
 
 ## Known issue: watchdog orphan-detection false positives
 
