@@ -3,3 +3,4 @@ Scripts/crypto_key.txt
 Scripts/secret_key.txt
 Hurricane
 __pycache__
+.env

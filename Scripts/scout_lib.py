@@ -5,12 +5,19 @@ Shared by scout.py (CLI) and app.py (web dashboard) so there's a single
 tested implementation instead of two copies drifting apart.
 """
 
+import os
 import queue
 import subprocess
 import threading
 import time
 
 import psutil
+
+# Multiplies the timing-sensitive delays below (boot/login/approach/
+# travelapproach) so slower hosts/network paths to the game server can be
+# tuned without touching code - set DELAY_MULTIPLIER in the environment
+# (e.g. docker-compose.yml) instead.
+DELAY_MULTIPLIER = float(os.environ.get("DELAY_MULTIPLIER", "1.0"))
 
 JAVA_ARGS = [
     # No -Xmx/-XX:+UseSerialGC here on purpose: a capped heap + the
@@ -36,10 +43,10 @@ JAVA_ARGS = [
 HEADLESS_RENDER_SIZE = "320x240"
 
 DEFAULT_DELAYS = {
-    "boot": 6.0,
-    "login": 8.0,
-    "approach": 4.0,
-    "travelapproach": 8.0,
+    "boot": 6.0 * DELAY_MULTIPLIER,
+    "login": 8.0 * DELAY_MULTIPLIER,
+    "approach": 4.0 * DELAY_MULTIPLIER,
+    "travelapproach": 8.0 * DELAY_MULTIPLIER,
     "settle": 3.0,
     "short": 1.5,
     "teleport": 5.0,  # used for :hearth

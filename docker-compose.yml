@@ -5,6 +5,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${HOST_PORT:-5001}:5000"
+    environment:
+      # Scales scout_lib.py's boot/login/approach/travelapproach delays for
+      # hosts with slower network round-trips to the game server. Override
+      # per-host via a .env file (e.g. DELAY_MULTIPLIER=3 for this host).
+      DELAY_MULTIPLIER: "${DELAY_MULTIPLIER:-1.0}"
     volumes:
       - ./Scripts:/app
       - ./Hurricane:/opt/hurricane
