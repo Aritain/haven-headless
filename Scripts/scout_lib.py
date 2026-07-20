@@ -250,7 +250,4 @@ def run_scout(bindir, user, char, roads, gob, server="game.havenandhearth.com",
         if proc is not None:
             stop_client(proc)
 
-    if verbose:
-        print("\n".join(log))
-
     return {"result": result, "found_roads": found_roads, "log": log}

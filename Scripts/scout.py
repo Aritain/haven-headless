@@ -45,6 +45,8 @@ def main():
 
     outcome = run_scout(args.bindir, args.user, args.char, args.road, args.gob,
                          args.server, delays, args.verbose)
+    if args.verbose:
+        print("\n".join(outcome["log"]))
     print(f"RESULT: {outcome['result']}")
 
 
