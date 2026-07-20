@@ -1,5 +1,4 @@
 # Runtime state and secrets: do not commit these files.
-Scripts/scout.db
 Scripts/crypto_key.txt
 Scripts/secret_key.txt
 Hurricane

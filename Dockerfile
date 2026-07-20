@@ -10,9 +10,6 @@ WORKDIR /app
 COPY Scripts/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY Scripts/ ./
-COPY Hurricane/ /opt/hurricane/
-
 EXPOSE 5000
 
 CMD ["python3", "app.py"]
